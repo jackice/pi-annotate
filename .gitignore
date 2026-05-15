@@ -5,4 +5,6 @@ tmp/
 /.pi/sessions
 /参考
 /.pi
-docs/
+docs/*
+!docs/demo/
+!docs/demo/*

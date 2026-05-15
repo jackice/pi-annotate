@@ -2,6 +2,12 @@
 
 A visual annotation extension for pi-agent that opens an interactive annotation UI for reviewing context messages and markdown documents. On macOS, uses [Glimpse](https://github.com/hazat/glimpse) to render in a native WKWebView window; falls back to a browser tab on other platforms.
 
+<p align="center">
+  <img src="docs/demo/annotation-ui.png" alt="pi-annotate 注释界面截图" width="100%">
+  <br>
+  <em>注释界面：选中文本后弹出浮动工具栏，批注显示在右侧面板</em>
+</p>
+
 ## Installation
 
 ```bash
