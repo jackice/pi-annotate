@@ -1469,7 +1469,6 @@
     };
 
     showFloatingToolbar(range);
-    sel.removeAllRanges();
   }
 
   /* ===== Floating Toolbar ===== */
@@ -1751,7 +1750,6 @@
     // Clear text input
     const textInput = document.getElementById('annTextInput');
     textInput.value = '';
-    textInput.focus();
 
     // Disable confirm until text is entered
     document.getElementById('popupConfirm').disabled = true;
@@ -1785,6 +1783,9 @@
     popup.style.left = left + 'px';
     popup.style.top = top + 'px';
     popup.style.display = 'block';
+
+    // focus 必须在 popup 显示（display: block）之后调用，否则 display:none 时 focus 无效
+    textInput.focus();
   }
 
   function hideCreationPopup() {
@@ -1904,15 +1905,6 @@
   document.addEventListener('mousedown', function(e) {
     if (e.target.closest('#qlPopover') || e.target.closest('#tbQuickLabel')) return;
     document.getElementById('qlPopover').classList.remove('active');
-  });
-
-  // Click overlay to cancel
-  // Hide comment popup on outside click (no backdrop)
-  document.addEventListener('mousedown', function(e) {
-    if (e.target.closest('#creationPopup') || e.target.closest('.floating-toolbar')) return;
-    if (document.getElementById('creationPopup').style.display === 'block') {
-      hideCreationPopup();
-    }
   });
 
   // Hide floating toolbar on outside click
@@ -2054,7 +2046,34 @@
 
   /* ===== Keyboard Shortcuts ===== */
 
-
+  // WKWebView 中无 Edit 菜单时 Cmd+V 无法路由到文本框
+  // 手动拦截 Cmd+V/Ctrl+V，使用 clipboard API 读取剪贴板
+  // 注：macOS WKWebView 首次使用 clipboard API 会弹出系统权限对话框
+  //    授权后本次会话内不再弹出
+  document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
+      var target = document.activeElement;
+      if (target && target.id === 'annTextInput') {
+        e.preventDefault();
+        navigator.clipboard.readText().then(function(text) {
+          if (text && document.activeElement === target) {
+            var start = target.selectionStart;
+            var end = target.selectionEnd;
+            var before = target.value.slice(0, start);
+            var after = target.value.slice(end);
+            target.value = before + text + after;
+            var newPos = start + text.length;
+            target.selectionStart = newPos;
+            target.selectionEnd = newPos;
+            var evt = new Event('input', { bubbles: true });
+            target.dispatchEvent(evt);
+          }
+        }).catch(function(err) {
+          console.warn('[Clipboard] readText failed:', err);
+        });
+      }
+    }
+  });
 
   /* ===== Init ===== */
 
@@ -2136,20 +2155,18 @@
         'Use the **Send Feedback** button at the bottom to submit your annotations to the server. ' +
         'Or use **Exit** to close without submitting.';
       planData = { plan: demoPlan, mode: 'annotate', sourceInfo: '(Demo Mode)' };
-      renderContent();
+      var contentDiv = document.getElementById('content');
+      document.getElementById('loadingState').style.display = 'none';
+      contentDiv.style.display = 'block';
+      contentDiv.innerHTML = renderMarkdown(planData.plan || '');
       return;
     }
 
     // Render markdown
-    const contentDiv = document.getElementById('content');
+    var contentDiv = document.getElementById('content');
     document.getElementById('loadingState').style.display = 'none';
     contentDiv.style.display = 'block';
     contentDiv.innerHTML = renderMarkdown(planData.plan || '');
-
-    // Fix tooltip positioning for blocks (prevent overflow)
-    document.querySelectorAll('.md-block').forEach(block => {
-      // No additional setup needed
-    });
 
     // Add subtle scroll margin to blocks for smooth scrolling
     const style = document.createElement('style');
@@ -2183,5 +2200,6 @@
 
 })();
 </script>
+
 </body>
 </html>
