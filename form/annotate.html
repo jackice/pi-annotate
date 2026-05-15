@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Annotation Review</title>
+  <style>
+    /* ===== CSS Variables / Theme ===== */
+    :root {
+      --bg-primary: #1a1b2e;
+      --bg-secondary: #232540;
+      --bg-tertiary: #2c2f50;
+      --bg-hover: #333660;
+      --text-primary: #e8e8f0;
+      --text-secondary: #9898b8;
+      --text-muted: #6868a0;
+      --border: #2e3058;
+      --border-light: #3a3d68;
+      --accent: #6c8cff;
+      --accent-hover: #8aa4ff;
+      --success: #4caf88;
+      --danger: #e06060;
+      --warning: #e6a040;
+
+      --type-comment: #6c8cff;
+      --type-comment-bg: rgba(108, 140, 255, 0.12);
+      --type-comment-border: rgba(108, 140, 255, 0.35);
+      --type-suggestion: #4caf88;
+      --type-suggestion-bg: rgba(76, 175, 136, 0.12);
+      --type-suggestion-border: rgba(76, 175, 136, 0.35);
+      --type-issue: #e06060;
+      --type-issue-bg: rgba(224, 96, 96, 0.12);
+      --type-issue-border: rgba(224, 96, 96, 0.35);
+      --type-praise: #e6c040;
+      --type-praise-bg: rgba(230, 192, 64, 0.12);
+      --type-praise-border: rgba(230, 192, 64, 0.35);
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+      --radius: 8px;
+      --radius-sm: 4px;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+
+      --panel-width: 300px;
+      --header-height: 44px;
+      --toolbar-height: 52px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* ===== Layout ===== */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== Status Bar ===== */
+    .status-bar {
+      height: var(--header-height);
+      min-height: var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      user-select: none;
+    }
+
+    .status-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .source-info {
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 12px;
+    }
+
+    .status-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .annotation-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 12px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .annotation-badge .count {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .gate-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--type-praise-bg);
+      color: var(--type-praise);
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--type-praise-border);
+    }
+
+    /* ===== Main Content Area ===== */
+    .main-content {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ===== Markdown Viewer ===== */
+    .md-viewer {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      min-width: 0;
+      line-height: 1.7;
+    }
+
+    .md-viewer {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-light) transparent;
+    }
+    .md-viewer::-webkit-scrollbar {
+      width: 6px;
+    }
+    .md-viewer::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .md-viewer::-webkit-scrollbar-thumb {
+      background: var(--border-light);
+      border-radius: 3px;
+    }
+    .md-viewer::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* Light mode overrides */
+    .light-mode {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f7;
+      --bg-tertiary: #e8e8ed;
+      --bg-hover: #dcdce0;
+      --text-primary: #1a1a2e;
+      --text-secondary: #5a5a7a;
+      --text-muted: #9a9ab0;
+      --border: #d4d4dc;
+      --border-light: #e4e4ec;
+      --accent: #4361ee;
+      --accent-hover: #3a56d4;
+      --success: #2d9f6e;
+      --danger: #d44a4a;
+      --warning: #cc8a30;
+      --type-comment: #4361ee;
+      --type-comment-bg: rgba(67, 97, 238, 0.10);
+      --type-comment-border: rgba(67, 97, 238, 0.28);
+      --type-suggestion: #2d9f6e;
+      --type-suggestion-bg: rgba(45, 159, 110, 0.10);
+      --type-suggestion-border: rgba(45, 159, 110, 0.28);
+      --type-issue: #d44a4a;
+      --type-issue-bg: rgba(212, 74, 74, 0.10);
+      --type-issue-border: rgba(212, 74, 74, 0.28);
+      --type-praise: #cc8a30;
+      --type-praise-bg: rgba(204, 138, 48, 0.10);
+      --type-praise-border: rgba(204, 138, 48, 0.28);
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .md-viewer h1, .md-viewer h2, .md-viewer h3,
+    .md-viewer h4, .md-viewer h5, .md-viewer h6 {
+      margin: 1.2em 0 0.5em;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text-primary);
+    }
+    .md-viewer h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+    .md-viewer h2 { font-size: 1.35em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+    .md-viewer h3 { font-size: 1.15em; }
+    .md-viewer h4 { font-size: 1.05em; }
+    .md-viewer h5 { font-size: 0.95em; }
+    .md-viewer h6 { font-size: 0.85em; color: var(--text-secondary); }
+
+    .md-viewer p {
+      margin: 0.6em 0;
+    }
+
+    .md-viewer pre {
+      margin: 0.8em 0;
+      padding: 14px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .md-viewer code {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+    }
+
+    .md-viewer pre code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+    }
+
+    .md-viewer blockquote {
+      margin: 0.6em 0;
+      padding: 4px 14px;
+      border-left: 3px solid var(--accent);
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    .md-viewer ul, .md-viewer ol {
+      margin: 0.4em 0;
+      padding-left: 24px;
+    }
+    .md-viewer li {
+      margin: 0.2em 0;
+    }
+
+    .md-viewer hr {
+      margin: 1.2em 0;
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    .md-viewer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .md-viewer a:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
+    }
+
+    .md-viewer img {
+      max-width: 100%;
+      border-radius: var(--radius);
+      margin: 0.6em 0;
+    }
+
+    .md-viewer table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0.8em 0;
+      font-size: 13px;
+    }
+    .md-viewer th, .md-viewer td {
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      text-align: left;
+    }
+    .md-viewer th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+    }
+    .md-viewer tr:nth-child(even) {
+      background: rgba(255,255,255,0.02);
+    }
+
+    /* ===== Markdown Blocks (for selection tracking) ===== */
+    .md-block {
+      position: relative;
+      border-radius: 2px;
+      transition: background-color 0.15s;
+    }
+
+    .md-block.highlight-comment { background-color: var(--type-comment-bg); border-left: 3px solid var(--type-comment-border); padding-left: 6px; }
+    .md-block.highlight-suggestion { background-color: var(--type-suggestion-bg); border-left: 3px solid var(--type-suggestion-border); padding-left: 6px; }
+    .md-block.highlight-issue { background-color: var(--type-issue-bg); border-left: 3px solid var(--type-issue-border); padding-left: 6px; }
+    .md-block.highlight-praise { background-color: var(--type-praise-bg); border-left: 3px solid var(--type-praise-border); padding-left: 6px; }
+
+    .md-block::after {
+      display: none;
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 0;
+      max-width: 280px;
+      padding: 6px 10px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+    .md-block[data-tooltip]:hover::after {
+      display: block;
+    }
+
+    /* ===== Annotation Panel ===== */
+    .annotation-panel {
+      width: var(--panel-width);
+      min-width: var(--panel-width);
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 12px 14px;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .panel-body::-webkit-scrollbar {
+      width: 5px;
+    }
+    .panel-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .panel-body::-webkit-scrollbar-thumb {
+      background: var(--border-light);
+      border-radius: 3px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 24px;
+      gap: 8px;
+    }
+    .empty-state .icon {
+      font-size: 28px;
+      opacity: 0.4;
+    }
+
+    .ann-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .ann-card:hover {
+      border-color: var(--border-light);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .ann-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .ann-type-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .ann-type-tag.comment { background: var(--type-comment-bg); color: var(--type-comment); border: 1px solid var(--type-comment-border); }
+    .ann-type-tag.suggestion { background: var(--type-suggestion-bg); color: var(--type-suggestion); border: 1px solid var(--type-suggestion-border); }
+    .ann-type-tag.issue { background: var(--type-issue-bg); color: var(--type-issue); border: 1px solid var(--type-issue-border); }
+    .ann-type-tag.praise { background: var(--type-praise-bg); color: var(--type-praise); border: 1px solid var(--type-praise-border); }
+
+    .ann-card-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .ann-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 4px;
+      border-radius: var(--radius-sm);
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+    }
+    .ann-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+    .ann-btn.delete:hover {
+      color: var(--danger);
+    }
+    .ann-btn-icon {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    .ann-card-text {
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+    .ann-card-text .empty-text {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .ann-card-original {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      max-height: 40px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 4px;
+    }
+
+    .ann-card-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Edit mode */
+    .ann-edit-textarea {
+      width: 100%;
+      min-height: 60px;
+      padding: 6px 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      resize: vertical;
+      outline: none;
+    }
+    .ann-edit-textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .ann-edit-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .ann-edit-btn {
+      padding: 3px 12px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ann-edit-btn.save {
+      background: var(--accent);
+      color: #fff;
+    }
+    .ann-edit-btn.save:hover {
+      background: var(--accent-hover);
+    }
+    .ann-edit-btn.cancel {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+    }
+    .ann-edit-btn.cancel:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* ===== Floating Creation Popup ===== */
+    .creation-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 500;
+    }
+    .creation-overlay.active {
+      display: block;
+    }
+
+    /* Floating toolbar - appears on text selection */
+    .floating-toolbar {
+      position: fixed;
+      z-index: 600;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 4px 6px;
+      box-shadow: var(--shadow);
+      display: none;
+      align-items: center;
+      gap: 2px;
+      animation: toolbar-in 0.15s ease-out;
+    }
+    .floating-toolbar.active { display: flex; }
+    @keyframes toolbar-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .floating-toolbar .divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border-light);
+      margin: 0 4px;
+    }
+    .toolbar-action-btn {
+      background: none;
+      border: none;
+      padding: 5px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.12s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .toolbar-action-btn:hover { background: var(--bg-hover); }
+    .toolbar-action-btn svg { width: 16px; height: 16px; }
+    .toolbar-action-btn.comment { color: var(--type-comment); }
+    .toolbar-action-btn.comment:hover { background: var(--type-comment-bg); }
+    .toolbar-action-btn.delete { color: var(--type-issue); }
+    .toolbar-action-btn.delete:hover { background: var(--type-issue-bg); }
+    .toolbar-action-btn.praise { color: var(--type-praise); }
+    .toolbar-action-btn.praise:hover { background: var(--type-praise-bg); }
+    .toolbar-action-btn.quicklabel { color: var(--warning); }
+    .toolbar-action-btn.quicklabel:hover { background: rgba(230, 160, 64, 0.12); }
+
+    /* Quick label popover */
+    .ql-popover {
+      position: fixed;
+      z-index: 700;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 4px;
+      box-shadow: var(--shadow);
+      display: none;
+      min-width: 180px;
+      animation: toolbar-in 0.12s ease-out;
+    }
+    .ql-popover.active { display: block; }
+    .ql-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-primary);
+      transition: background 0.1s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .ql-item:hover { background: var(--bg-hover); }
+    .ql-item .ql-emoji { font-size: 14px; }
+    .ql-item .ql-key {
+      margin-left: auto;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .creation-popup {
+      position: fixed;
+      z-index: 501;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      min-width: 320px;
+      max-width: 400px;
+    }
+
+    .creation-popup h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+
+    .type-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .type-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .type-btn:hover {
+      border-color: var(--border-light);
+      background: var(--bg-hover);
+    }
+    .type-btn.selected {
+      color: #fff;
+      border-color: transparent;
+    }
+    .type-btn.selected.type-comment { background: var(--type-comment); }
+    .type-btn.selected.type-suggestion { background: var(--type-suggestion); }
+    .type-btn.selected.type-issue { background: var(--type-issue); }
+    .type-btn.selected.type-praise { background: var(--type-praise); }
+
+    .type-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+    .type-icon.comment { color: var(--type-comment); }
+    .type-icon.suggestion { color: var(--type-suggestion); }
+    .type-icon.issue { color: var(--type-issue); }
+    .type-icon.praise { color: var(--type-praise); }
+
+    .popup-original-preview {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 10px;
+      max-height: 60px;
+      overflow-y: auto;
+      border-left: 2px solid var(--border-light);
+    }
+    .popup-original-preview::before {
+      content: "原文: ";
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .creation-popup textarea {
+      width: 100%;
+      min-height: 60px;
+      padding: 8px 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      resize: vertical;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    .creation-popup textarea:focus {
+      border-color: var(--accent);
+    }
+    .creation-popup textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .popup-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 6px 16px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:hover {
+      opacity: 0.9;
+    }
+
+    /* ===== Bottom Toolbar ===== */
+    .toolbar {
+      height: var(--toolbar-height);
+      min-height: var(--toolbar-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .toolbar-left kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      font-family: var(--font-sans);
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    .toolbar-right {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-toolbar {
+      padding: 8px 18px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-feedback {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-feedback:hover {
+      background: var(--accent-hover);
+    }
+    .btn-feedback:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-approve {
+      background: var(--success);
+      color: #fff;
+    }
+    .btn-approve:hover {
+      opacity: 0.9;
+    }
+
+
+
+    /* ===== Status Messages ===== */
+    .status-msg {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 40px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      z-index: 200;
+    }
+    .status-msg .msg-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+    .status-msg h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .status-msg p {
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ===== Confirm Dialog ===== */
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 600;
+      align-items: center;
+      justify-content: center;
+    }
+    .confirm-overlay.active {
+      display: flex;
+    }
+
+    .confirm-dialog {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      min-width: 280px;
+      max-width: 360px;
+      text-align: center;
+    }
+    .confirm-dialog h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .confirm-dialog p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+    .confirm-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    /* ===== Submitted State ===== */
+    .submitted-banner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: var(--success);
+      color: #fff;
+      text-align: center;
+      padding: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      z-index: 300;
+      animation: slideDown 0.3s ease-out;
+    }
+    .submitted-banner.active {
+      display: block;
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(0); }
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 720px) {
+      .annotation-panel {
+        width: 240px;
+        min-width: 240px;
+      }
+      .creation-popup {
+        min-width: 280px;
+        max-width: 320px;
+      }
+      .md-viewer {
+        padding: 14px 16px;
+      }
+    }
+    @media (max-width: 500px) {
+      .annotation-panel {
+        width: 200px;
+        min-width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="status-bar-left">
+      <span class="source-info" id="sourceInfo">Loading...</span>
+    </div>
+    <div class="status-bar-right">
+      <span class="annotation-badge" id="annBadge">
+        <span class="count" id="annCount">0</span> annotations
+      </span>
+      <span class="gate-tag" id="gateTag" style="display:none;">⏳ Gate mode</span>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="md-viewer" id="mdViewer">
+      <div id="loadingState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;">
+        <div class="loading-spinner"></div>
+        <p style="color:var(--text-muted);">Loading content...</p>
+      </div>
+      <div id="content" style="display:none;"></div>
+      <div id="errorState" style="display:none;flex-direction:column;align-items:center;justify-content:center;height:60vh;">
+        <div class="msg-icon" style="font-size:36px;margin-bottom:12px;">⚠️</div>
+        <p style="color:var(--text-secondary);font-size:14px;">Failed to load content</p>
+        <p id="errorDetail" style="color:var(--text-muted);font-size:12px;"></p>
+      </div>
+    </div>
+
+    <!-- Annotation Panel -->
+    <div class="annotation-panel" id="annPanel">
+      <div class="panel-header">Annotations</div>
+      <div class="panel-body" id="annList"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <span class="shortcut-hint"><kbd class="mod-key">⌘</kbd><kbd>Shift</kbd><kbd>L</kbd> Theme</span>
+    </div>
+    <div class="toolbar-right">
+      <button class="btn-toolbar btn-approve" id="btnApprove">✓ Approve</button>
+      <button class="btn-toolbar btn-feedback" id="btnFeedback" disabled>Send Feedback</button>
+    </div>
+  </div>
+</div>
+
+<!-- Creation Popup -->
+<div class="floating-toolbar" id="floatingToolbar">
+  <button class="toolbar-action-btn comment" id="tbComment" title="Add comment">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+  </button>
+  <button class="toolbar-action-btn delete" id="tbDelete" title="Suggest deletion">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+  </button>
+  <button class="toolbar-action-btn praise" id="tbPraise" title="Looks good">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"/></svg>
+  </button>
+  <button class="toolbar-action-btn quicklabel" id="tbQuickLabel" title="Quick label">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+  </button>
+  <div class="divider"></div>
+  <button class="toolbar-action-btn close" id="tbClose" title="Close">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+  </button>
+</div>
+<div class="ql-popover" id="qlPopover">
+  <button class="ql-item" data-ql="clarify"><span class="ql-emoji">❓</span> 需澄清说明<span class="ql-key">1</span></button>
+  <button class="ql-item" data-ql="missing"><span class="ql-emoji">📋</span> 缺少关键细节<span class="ql-key">2</span></button>
+  <button class="ql-item" data-ql="assumption"><span class="ql-emoji">🔍</span> 需要验证假设<span class="ql-key">3</span></button>
+  <button class="ql-item" data-ql="example"><span class="ql-emoji">🔬</span> 缺少具体示例<span class="ql-key">4</span></button>
+  <button class="ql-item" data-ql="tradeoff"><span class="ql-emoji">⚖️</span> 需权衡利弊<span class="ql-key">5</span></button>
+  <button class="ql-item" data-ql="over-eng"><span class="ql-emoji">🏗️</span> 过度设计<span class="ql-key">6</span></button>
+  <button class="ql-item" data-ql="scope"><span class="ql-emoji">🚫</span> 超出范围<span class="ql-key">7</span></button>
+  <button class="ql-item" data-ql="edge-case"><span class="ql-emoji">⚠️</span> 遗漏边界情况<span class="ql-key">8</span></button>
+  <button class="ql-item" data-ql="structure"><span class="ql-emoji">📐</span> 结构清晰<span class="ql-key">9</span></button>
+  <button class="ql-item" data-ql="nice"><span class="ql-emoji">👍</span> 方案不错<span class="ql-key">0</span></button>
+</div>
+<div class="creation-overlay" id="creationOverlay"></div>
+<div class="creation-popup" id="creationPopup" style="display:none;">
+  <h3>添加批注</h3>
+  <div class="type-selector" id="typeSelector">
+    <button class="type-btn selected type-comment" data-type="comment">
+      <svg class="type-icon comment" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+      Comment
+    </button>
+  </div>
+  <div class="popup-original-preview" id="popupOriginal"></div>
+  <textarea id="annTextInput" placeholder="输入批注内容..." rows="3"></textarea>
+  <div class="popup-actions">
+    <button class="btn btn-secondary" id="popupCancel">Cancel</button>
+    <button class="btn btn-primary" id="popupConfirm" disabled>Add Annotation</button>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-dialog">
+    <h3 id="confirmTitle">确认</h3>
+    <p id="confirmMessage">确定要执行此操作吗？</p>
+    <div class="confirm-actions">
+      <button class="btn btn-secondary" id="confirmCancel">Cancel</button>
+      <button class="btn btn-danger" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Submitted Banner -->
+<div class="submitted-banner" id="submittedBanner">✓ Feedback submitted successfully</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ===== Configuration & State ===== */
+  const ANNOTATE_DATA = (function() {
+    try {
+      return JSON.parse('__ANNOTATE_DATA__');
+    } catch(e) {
+      return { sessionToken: '', mode: 'annotate', sourceInfo: null, gate: false, startedAt: Date.now() };
+    }
+  })();
+
+  const MODE = ANNOTATE_DATA.mode || 'annotate';
+  const SOURCE_INFO = ANNOTATE_DATA.sourceInfo || null;
+  const IS_GATE = !!ANNOTATE_DATA.gate;
+  const STARTED_AT = ANNOTATE_DATA.startedAt || Date.now();
+
+  let annotations = [];
+  let planData = null;
+  let nextAnnId = 0;
+
+  /* ===== Utility Functions ===== */
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function generateId() {
+    return 'ann-' + Date.now().toString(36) + '-' + (nextAnnId++).toString(36) + Math.random().toString(36).slice(2, 5);
+  }
+
+  function getTypeIcon(type) {
+    var icons = {
+      comment: '<svg class="type-icon comment" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg> ',
+      suggestion: '<svg class="type-icon suggestion" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg> ',
+      issue: '<svg class="type-icon issue" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg> ',
+      praise: '<svg class="type-icon praise" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/></svg> '
+    };
+    return icons[type] || '';
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const pad = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' +
+           pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  /* ===== Markdown Renderer ===== */
+
+  /**
+   * Render markdown to HTML.
+   * Each block-level element gets wrapped in a .md-block div with
+   * data-offset-start and data-offset-end attributes for selection mapping.
+   */
+  function renderMarkdown(md) {
+    if (!md) return '<p style="color:var(--text-muted)">(empty content)</p>';
+
+    const lines = md.split('\n');
+    let offset = 0;        // current position in original markdown string
+    let i = 0;
+    const out = [];
+    let inList = false;
+    let listType = null;   // 'ul' or 'ol'
+
+    function advanceLine() {
+      const len = lines[i].length;
+      offset += len + (i < lines.length - 1 ? 1 : 0);
+      i++;
+    }
+
+    function closeList() {
+      if (inList) {
+        out.push('</' + listType + '>');
+        inList = false;
+        listType = null;
+      }
+    }
+
+    while (i < lines.length) {
+      const line = lines[i];
+      const blockStart = offset;
+      const trimmed = line.trim();
+
+      // Horizontal rule
+      if (/^[-*_]{3,}\s*$/.test(trimmed)) {
+        closeList();
+        const blockEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
+        out.push('<div class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '"><hr></div>');
+        advanceLine();
+        continue;
+      }
+
+      // Heading
+      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        closeList();
+        const level = headingMatch[1].length;
+        const content = renderInline(headingMatch[2]);
+        const blockEnd = offset + line.length + (i < lines.length - 1 ? 1 : 0);
+        out.push('<h' + level + ' class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' + content + '</h' + level + '>');
+        advanceLine();
+        continue;
+      }
+
+      // Fenced code block
+      if (/^```/.test(trimmed)) {
+        closeList();
+        const lang = trimmed.slice(3).trim();
+        const codeLines = [];
+        const langMarkerLen = line.length;
+        advanceLine(); // skip opening ```
+        while (i < lines.length && !/^```/.test(lines[i].trim())) {
+          codeLines.push(lines[i]);
+          advanceLine();
+        }
+        const closingLen = i < lines.length ? lines[i].length : 0;
+        if (i < lines.length) advanceLine(); // skip closing ```
+        const code = escapeHtml(codeLines.join('\n'));
+        const blockEnd = offset;
+        out.push(
+          '<div class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' +
+          '<pre><code' + (lang ? ' class="language-' + escapeHtml(lang) + '"' : '') + '>' + code + '</code></pre>' +
+          '</div>'
+        );
+        continue;
+      }
+
+      // Blockquote
+      if (/^>\s?/.test(line)) {
+        closeList();
+        const quoteLines = [];
+        while (i < lines.length && /^>/.test(lines[i].trim())) {
+          // Remove leading "> " but keep inner formatting
+          const processed = lines[i].replace(/^>\s?/, '');
+          quoteLines.push(processed);
+          advanceLine();
+        }
+        const text = renderInline(quoteLines.join('\n'));
+        const blockEnd = offset;
+        out.push(
+          '<div class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' +
+          '<blockquote>' + text + '</blockquote>' +
+          '</div>'
+        );
+        continue;
+      }
+
+      // Unordered list
+      const ulMatch = line.match(/^[\-\*\+]\s+(.+)$/);
+      if (ulMatch) {
+        if (!inList || listType !== 'ul') {
+          closeList();
+          out.push('<ul>');
+          inList = true;
+          listType = 'ul';
+        }
+        const liLines = [ulMatch[1]];
+        advanceLine();
+        // Collect continuation lines (indented)
+        while (i < lines.length && /^\s+\S/.test(lines[i]) && !/^[\-\*\+]\s/.test(lines[i]) && !/^\d+\.\s/.test(lines[i])) {
+          liLines.push(lines[i]);
+          advanceLine();
+        }
+        const blockEnd = offset;
+        out.push(
+          '<li class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' +
+          renderInline(liLines.join(' ')) +
+          '</li>'
+        );
+        continue;
+      }
+
+      // Ordered list
+      const olMatch = line.match(/^(\d+)\.\s+(.+)$/);
+      if (olMatch) {
+        if (!inList || listType !== 'ol') {
+          closeList();
+          out.push('<ol>');
+          inList = true;
+          listType = 'ol';
+        }
+        const liLines = [olMatch[2]];
+        advanceLine();
+        while (i < lines.length && /^\s+\S/.test(lines[i]) && !/^[\-\*\+]\s/.test(lines[i]) && !/^\d+\.\s/.test(lines[i])) {
+          liLines.push(lines[i]);
+          advanceLine();
+        }
+        const blockEnd = offset;
+        out.push(
+          '<li class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' +
+          renderInline(liLines.join(' ')) +
+          '</li>'
+        );
+        continue;
+      }
+
+      // Table: look for consecutive lines with |
+      if (trimmed.startsWith('|') && i + 1 < lines.length && /^\|[\s\-:|]+\|/.test(lines[i+1].trim())) {
+        closeList();
+        const rows = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) {
+          rows.push(lineToCells(lines[i]));
+          advanceLine();
+        }
+        if (rows.length >= 2) {
+          const headerCells = rows[0];
+          const alignRow = rows[1] || [];
+          // Build alignment from separator row
+          const alignments = alignRow.map(cell => {
+            if (/^:-+:$/.test(cell.trim())) return 'center';
+            if (/^-+:$/.test(cell.trim())) return 'right';
+            if (/^:-+$/.test(cell.trim())) return 'left';
+            return null;
+          });
+          const dataRows = rows.slice(2);
+          const blockEnd = offset;
+          let html = '<div class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">';
+          html += '<table><thead><tr>';
+          headerCells.forEach((c, idx) => {
+            html += '<th' + (alignments[idx] ? ' style="text-align:' + alignments[idx] + '"' : '') + '>' + renderInline(c.trim()) + '</th>';
+          });
+          html += '</tr></thead><tbody>';
+          dataRows.forEach(row => {
+            html += '<tr>';
+            row.forEach((c, idx) => {
+              html += '<td' + (alignments[idx] ? ' style="text-align:' + alignments[idx] + '"' : '') + '>' + renderInline(c.trim()) + '</td>';
+            });
+            html += '</tr>';
+          });
+          html += '</tbody></table></div>';
+          out.push(html);
+        }
+        continue;
+      }
+
+      // Empty line: close any open list, add spacing
+      if (trimmed === '') {
+        closeList();
+        out.push('<div class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + (offset + 1) + '" style="height:0.4em;"></div>');
+        advanceLine();
+        continue;
+      }
+
+      // Indented code block (4 spaces or 1 tab)
+      if (/^(    |\t)/.test(line)) {
+        closeList();
+        const codeLines = [];
+        while (i < lines.length && /^(    |\t)/.test(lines[i])) {
+          codeLines.push(lines[i].replace(/^(    |\t)/, ''));
+          advanceLine();
+        }
+        const blockEnd = offset;
+        out.push(
+          '<div class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' +
+          '<pre><code>' + escapeHtml(codeLines.join('\n')) + '</code></pre>' +
+          '</div>'
+        );
+        continue;
+      }
+
+      // Paragraph (catch-all)
+      closeList();
+      const paraLines = [line];
+      advanceLine();
+      while (i < lines.length) {
+        const nextTrimmed = lines[i].trim();
+        // Break on empty lines, headings, blockquotes, code fences, HRs
+        if (nextTrimmed === '' ||
+            /^(#{1,6}\s|>\s?|```|(?:-{3,}|\*{3,}))$/.test(nextTrimmed)) {
+          break;
+        }
+        // Break on table lines (consecutive pipe-delimited)
+        if (/^\|/.test(nextTrimmed) && i + 1 < lines.length && /^\|/.test(lines[i + 1])) break;
+        // Break on list markers
+        if (/^[\-\*\+]\s/.test(nextTrimmed) || /^\d+\.\s/.test(nextTrimmed)) break;
+        paraLines.push(lines[i]);
+        advanceLine();
+      }
+      const blockEnd = offset;
+      out.push(
+        '<p class="md-block" data-offset-start="' + blockStart + '" data-offset-end="' + blockEnd + '">' +
+        renderInline(paraLines.join('\n')) +
+        '</p>'
+      );
+    }
+
+    closeList();
+    return out.join('\n');
+  }
+
+  function lineToCells(line) {
+    // Split by |, trim each cell
+    const cells = [];
+    let current = '';
+    let inCode = false;
+    for (let j = 0; j < line.length; j++) {
+      const ch = line[j];
+      if (ch === '`') { inCode = !inCode; current += ch; continue; }
+      if (ch === '|' && !inCode) {
+        cells.push(current);
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    cells.push(current);
+    // Remove first and last if empty (from leading/trailing |)
+    if (cells.length > 0 && cells[0].trim() === '') cells.shift();
+    if (cells.length > 0 && cells[cells.length-1].trim() === '') cells.pop();
+    return cells;
+  }
+
+  function renderInline(text) {
+    let s = escapeHtml(text);
+    // Images first (before links)
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+    // Links
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Bold
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic (must be after bold to avoid partial matches)
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Inline code
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return s;
+  }
+
+  /* ===== Text Selection & Annotation Creation ===== */
+
+  let pendingRange = null; // { startOffset, endOffset, textPreview, selRect? }
+
+  function handleTextSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    if (!range) return;
+
+    // Find the .md-block ancestors
+    let startNode = range.startContainer;
+    let endNode = range.endContainer;
+    while (startNode && startNode.nodeType === 3) startNode = startNode.parentNode;
+    while (endNode && endNode.nodeType === 3) endNode = endNode.parentNode;
+
+    // Walk up to find .md-block
+    let startBlock = startNode;
+    let endBlock = endNode;
+    while (startBlock && !startBlock.classList?.contains('md-block')) startBlock = startBlock.parentNode;
+    while (endBlock && !endBlock.classList?.contains('md-block')) endBlock = endBlock.parentNode;
+
+    if (!startBlock && !endBlock) return;
+
+    const startOffset = startBlock ? parseInt(startBlock.dataset.offsetStart) : 0;
+    const endOffset = endBlock ? parseInt(endBlock.dataset.offsetEnd) : (planData?.plan?.length || 0);
+
+    const selectedText = sel.toString().trim();
+    if (!selectedText) return;
+
+    // Find text in original markdown for more precise range
+    let origStart = planData.plan.indexOf(selectedText);
+    let origEnd = origStart >= 0 ? origStart + selectedText.length : endOffset;
+    if (origStart < 0) {
+      // Fallback: use block offsets
+      origStart = startOffset;
+      origEnd = endOffset;
+    }
+
+    const preview = selectedText.length > 80 ? selectedText.slice(0, 80) + '…' : selectedText;
+
+    var selRect = range.getBoundingClientRect();
+
+    pendingRange = {
+      startOffset: origStart,
+      endOffset: origEnd,
+      textPreview: preview,
+      selRect: { top: selRect.top, bottom: selRect.bottom, left: selRect.left, width: selRect.width }
+    };
+
+    showFloatingToolbar(range);
+    sel.removeAllRanges();
+  }
+
+  /* ===== Floating Toolbar ===== */
+
+  function showFloatingToolbar(range) {
+    var rect = range.getBoundingClientRect();
+    var toolbar = document.getElementById('floatingToolbar');
+    // Show first to measure width, then position and clamp
+    toolbar.classList.add('active');
+    var tw = toolbar.offsetWidth;
+    var center = rect.left + rect.width / 2;
+    var left = center - tw / 2;
+    var pad = 8;
+    if (left < pad) left = pad;
+    if (left + tw > window.innerWidth - pad) left = window.innerWidth - tw - pad;
+    toolbar.style.top = (rect.top - 48) + 'px';
+    toolbar.style.left = left + 'px';
+    toolbar.style.transform = 'none';
+  }
+
+  function hideFloatingToolbar() {
+    document.getElementById('floatingToolbar').classList.remove('active');
+  }
+
+  /* ===== Annotation Management ===== */
+
+  function addAnnotation(type, text, range) {
+    const ann = {
+      id: generateId(),
+      type: type,
+      text: text.trim(),
+      originalText: range.textPreview,
+      range: {
+        startOffset: range.startOffset,
+        endOffset: range.endOffset,
+        textPreview: range.textPreview
+      },
+      createdAt: Date.now()
+    };
+    annotations.unshift(ann);
+    sortAnnotations();
+    updateAll();
+    return ann;
+  }
+
+  function sortAnnotations() {
+    annotations.sort((a, b) => a.range.startOffset - b.range.startOffset);
+  }
+
+  function updateAnnotation(id, newText) {
+    const ann = annotations.find(a => a.id === id);
+    if (ann) {
+      ann.text = newText.trim();
+      updateAll();
+    }
+  }
+
+  function deleteAnnotation(id) {
+    annotations = annotations.filter(a => a.id !== id);
+    updateAll();
+  }
+
+  function highlightAnnotations() {
+    const blocks = document.querySelectorAll('.md-block');
+    // Remove existing highlights
+    blocks.forEach(b => {
+      b.className = b.className.replace(/\bhighlight-\w+\b/g, '').trim();
+      b.removeAttribute('data-tooltip');
+      (b.querySelectorAll('[style]') || []).forEach(el => {
+        // Keep only visual inline styles, don't strip
+      });
+    });
+
+    if (annotations.length === 0) return;
+
+    const typeColorMap = {
+      comment: 'comment',
+      suggestion: 'suggestion',
+      issue: 'issue',
+      praise: 'praise'
+    };
+
+    annotations.forEach(ann => {
+      const cls = 'highlight-' + (typeColorMap[ann.type] || 'comment');
+      blocks.forEach(block => {
+        const blockStart = parseInt(block.dataset.offsetStart);
+        const blockEnd = parseInt(block.dataset.offsetEnd);
+        if (blockStart >= ann.range.startOffset && blockStart < ann.range.endOffset) {
+          block.classList.add(cls);
+          const existing = block.getAttribute('data-tooltip') || '';
+          const tip = '[' + ann.type.toUpperCase() + '] ' + ann.text;
+          block.setAttribute('data-tooltip', existing ? existing + '\n---\n' + tip : tip);
+        } else if (blockEnd > ann.range.startOffset && blockEnd <= ann.range.endOffset) {
+          block.classList.add(cls);
+          const existing = block.getAttribute('data-tooltip') || '';
+          const tip = '[' + ann.type.toUpperCase() + '] ' + ann.text;
+          block.setAttribute('data-tooltip', existing ? existing + '\n---\n' + tip : tip);
+        } else if (blockStart <= ann.range.startOffset && blockEnd >= ann.range.endOffset) {
+          // Block fully contains the annotation range
+          block.classList.add(cls);
+          const existing = block.getAttribute('data-tooltip') || '';
+          const tip = '[' + ann.type.toUpperCase() + '] ' + ann.text;
+          block.setAttribute('data-tooltip', existing ? existing + '\n---\n' + tip : tip);
+        }
+      });
+    });
+  }
+
+  function scrollToAnnotation(id) {
+    const ann = annotations.find(a => a.id === id);
+    if (!ann) return;
+    const blocks = document.querySelectorAll('.md-block');
+    for (const block of blocks) {
+      const blockStart = parseInt(block.dataset.offsetStart);
+      const blockEnd = parseInt(block.dataset.offsetEnd);
+      if (blockStart >= ann.range.startOffset && blockStart < ann.range.endOffset) {
+        block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        block.style.outline = '2px solid var(--accent)';
+        setTimeout(() => { block.style.outline = ''; }, 2000);
+        return;
+      }
+    }
+  }
+
+  /* ===== UI Update ===== */
+
+  function updateAll() {
+    renderAnnotationList();
+    updateBadge();
+    highlightAnnotations();
+    updateButtons();
+  }
+
+  function updateBadge() {
+    document.getElementById('annCount').textContent = annotations.length;
+  }
+
+  function updateButtons() {
+    document.getElementById('btnFeedback').disabled = annotations.length === 0;
+  }
+
+  function renderAnnotationList() {
+    const container = document.getElementById('annList');
+    if (annotations.length === 0) {
+      container.innerHTML =
+        '<div class="empty-state">' +
+        '<div class="icon">📝</div>' +
+        '<div>No annotations yet</div>' +
+        '<div style="font-size:11px;">Select text in the content to add an annotation</div>' +
+        '</div>';
+      return;
+    }
+
+    const editingId = container.dataset.editingId || null;
+
+    let html = '';
+    annotations.forEach(ann => {
+      const isEditing = editingId === ann.id;
+      html += '<div class="ann-card" data-ann-id="' + ann.id + '">';
+      html += '<div class="ann-card-header">';
+      html += '<span class="ann-type-tag ' + ann.type + '">' + getTypeIcon(ann.type) + ann.type + '</span>';
+      html += '<div class="ann-card-actions">';
+      if (!isEditing) {
+        html += '<button class="ann-btn edit" data-action="edit" data-id="' + ann.id + '" title="Edit annotation"><svg class="ann-btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>';
+        html += '<button class="ann-btn delete" data-action="delete" data-id="' + ann.id + '" title="Delete annotation"><svg class="ann-btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+      }
+      html += '</div></div>';
+
+      if (isEditing) {
+        html += '<textarea class="ann-edit-textarea" data-edit-id="' + ann.id + '" rows="3">' + escapeHtml(ann.text) + '</textarea>';
+        html += '<div class="ann-edit-actions">';
+        html += '<button class="ann-edit-btn cancel" data-action="cancelEdit" data-id="' + ann.id + '">Cancel</button>';
+        html += '<button class="ann-edit-btn save" data-action="saveEdit" data-id="' + ann.id + '">Save</button>';
+        html += '</div>';
+      } else {
+        html += '<div class="ann-card-text">' + (ann.text ? escapeHtml(ann.text) : '<span class="empty-text">(empty)</span>') + '</div>';
+      }
+
+      html += '<div class="ann-card-original" title="' + escapeHtml(ann.originalText) + '">' + escapeHtml(ann.originalText) + '</div>';
+      html += '<div class="ann-card-time">' + formatTime(ann.createdAt) + '</div>';
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+
+    // Re-bind event listeners for card actions
+    container.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const action = this.dataset.action;
+        const id = this.dataset.id;
+        if (action === 'edit') startEditing(id);
+        else if (action === 'delete') confirmDelete(id);
+        else if (action === 'saveEdit') saveEditing(id);
+        else if (action === 'cancelEdit') cancelEditing(id);
+      });
+    });
+
+    // Card click to scroll
+    container.querySelectorAll('.ann-card').forEach(card => {
+      card.addEventListener('click', function(e) {
+        if (e.target.closest('.ann-btn, .ann-edit-btn, .ann-edit-textarea')) return;
+        const id = this.dataset.annId;
+        if (id) scrollToAnnotation(id);
+      });
+    });
+  }
+
+  /* ===== Edit Mode ===== */
+
+  function startEditing(id) {
+    const container = document.getElementById('annList');
+    container.dataset.editingId = id;
+    renderAnnotationList();
+  }
+
+  function cancelEditing(id) {
+    const container = document.getElementById('annList');
+    container.dataset.editingId = '';
+    renderAnnotationList();
+  }
+
+  function saveEditing(id) {
+    const textarea = document.querySelector('[data-edit-id="' + id + '"]');
+    if (textarea) {
+      updateAnnotation(id, textarea.value);
+    }
+    const container = document.getElementById('annList');
+    container.dataset.editingId = '';
+    renderAnnotationList();
+  }
+
+  /* ===== Confirm Dialog ===== */
+
+  let confirmCallback = null;
+
+  function showConfirm(title, message, onOk) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    document.getElementById('confirmOverlay').classList.add('active');
+    confirmCallback = onOk;
+  }
+
+  function hideConfirm() {
+    document.getElementById('confirmOverlay').classList.remove('active');
+    confirmCallback = null;
+  }
+
+  document.getElementById('confirmOk').addEventListener('click', function() {
+    if (confirmCallback) confirmCallback();
+    hideConfirm();
+  });
+
+  document.getElementById('confirmCancel').addEventListener('click', hideConfirm);
+
+  function confirmDelete(id) {
+    showConfirm('Delete Annotation', 'Are you sure you want to delete this annotation?', function() {
+      deleteAnnotation(id);
+    });
+  }
+
+  /* ===== Creation Popup ===== */
+
+  let selectedType = 'comment';
+  let popupActive = false;
+
+  function showCreationPopup(sel, range) {
+    hideFloatingToolbar();
+    selectedType = 'comment';
+    popupActive = true;
+
+    // Set original text preview
+    document.getElementById('popupOriginal').textContent = pendingRange.textPreview;
+
+    // Hide type selector - always comment from toolbar
+    var typeSel = document.getElementById('typeSelector');
+    if (typeSel) typeSel.style.display = 'none';
+
+    // Clear text input
+    const textInput = document.getElementById('annTextInput');
+    textInput.value = '';
+    textInput.focus();
+
+    // Disable confirm until text is entered
+    document.getElementById('popupConfirm').disabled = true;
+
+    // Position popup near selection (no backdrop)
+    var popup = document.getElementById('creationPopup');
+    var popupWidth = 320;
+    var popupHeight = 200;
+    var left, top;
+
+    // Use stored selection rect when available (called from toolbar)
+    var rect = (range && typeof range.getBoundingClientRect === 'function')
+      ? range.getBoundingClientRect()
+      : (pendingRange && pendingRange.selRect);
+
+    if (rect) {
+      left = rect.left + (rect.width / 2) - (popupWidth / 2);
+      top = rect.bottom + 4;
+      if (top + popupHeight > window.innerHeight - 10) {
+        top = rect.top - popupHeight - 4;
+      }
+    } else {
+      left = (window.innerWidth - popupWidth) / 2;
+      top = (window.innerHeight - popupHeight) / 2;
+    }
+
+    if (left < 10) left = 10;
+    if (left + popupWidth > window.innerWidth - 10) left = window.innerWidth - popupWidth - 10;
+    if (top < 10) top = 10;
+
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+    popup.style.display = 'block';
+  }
+
+  function hideCreationPopup() {
+    document.getElementById('creationPopup').style.display = 'none';
+    document.getElementById('creationOverlay').classList.remove('active');
+    popupActive = false;
+    pendingRange = null;
+  }
+
+  function confirmCreation() {
+    if (!pendingRange) return;
+    const text = document.getElementById('annTextInput').value.trim();
+    if (!text) return;
+
+    addAnnotation(selectedType, text, pendingRange);
+    hideCreationPopup();
+  }
+
+  // Type selection
+  document.querySelectorAll('.type-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+      this.classList.add('selected');
+      selectedType = this.dataset.type;
+    });
+  });
+
+  // Text input enabling confirm
+  document.getElementById('annTextInput').addEventListener('input', function() {
+    document.getElementById('popupConfirm').disabled = this.value.trim().length === 0;
+  });
+
+  // Popup buttons
+  document.getElementById('popupConfirm').addEventListener('click', confirmCreation);
+  document.getElementById('popupCancel').addEventListener('click', hideCreationPopup);
+
+  // Hide comment popup when clicking outside
+  document.addEventListener('mousedown', function(e) {
+    if (e.target.closest('#creationPopup') || e.target.closest('.floating-toolbar') || e.target.closest('.md-viewer')) return;
+    if (document.getElementById('creationPopup').style.display === 'block') {
+      hideCreationPopup();
+    }
+  });
+
+  /* ===== Floating Toolbar Actions ===== */
+
+  document.getElementById('tbComment').addEventListener('click', function() {
+    hideFloatingToolbar();
+    if (pendingRange) { showCreationPopup(null, pendingRange); }
+  });
+
+  document.getElementById('tbDelete').addEventListener('click', function() {
+    hideFloatingToolbar();
+    if (pendingRange) { addAnnotation('issue', 'Suggest removing this section', pendingRange); pendingRange = null; }
+  });
+
+  document.getElementById('tbPraise').addEventListener('click', function() {
+    hideFloatingToolbar();
+    if (pendingRange) { addAnnotation('praise', 'Looks good', pendingRange); pendingRange = null; }
+  });
+
+  document.getElementById('tbClose').addEventListener('click', function() {
+    pendingRange = null;
+    hideFloatingToolbar();
+  });
+
+  /* ===== Quick Label Popover ===== */
+
+  var qlLabels = [
+    { id: 'clarify', emoji: '❓', text: '需澄清说明' },
+    { id: 'missing', emoji: '📋', text: '缺少关键细节' },
+    { id: 'assumption', emoji: '🔍', text: '需要验证假设' },
+    { id: 'example', emoji: '🔬', text: '缺少具体示例' },
+    { id: 'tradeoff', emoji: '⚖️', text: '需权衡利弊' },
+    { id: 'over-eng', emoji: '🏗️', text: '过度设计' },
+    { id: 'scope', emoji: '🚫', text: '超出范围' },
+    { id: 'edge-case', emoji: '⚠️', text: '遗漏边界情况' },
+    { id: 'structure', emoji: '📐', text: '结构清晰' },
+    { id: 'nice', emoji: '👍', text: '方案不错' }
+  ];
+
+  document.getElementById('tbQuickLabel').addEventListener('click', function(e) {
+    var popover = document.getElementById('qlPopover');
+    if (popover.classList.contains('active')) {
+      popover.classList.remove('active');
+      return;
+    }
+    var btnRect = this.getBoundingClientRect();
+    // Dynamic positioning: show above by default, below if not enough space
+    var spaceAbove = btnRect.top;
+    var popoverHeight = 280;
+    if (spaceAbove > popoverHeight) {
+      popover.style.top = (btnRect.top - 4) + 'px';
+      popover.style.transform = 'translateY(-100%)';
+    } else {
+      popover.style.top = (btnRect.bottom + 4) + 'px';
+      popover.style.transform = 'none';
+    }
+    popover.style.left = (btnRect.left - 4) + 'px';
+    popover.classList.add('active');
+  });
+
+  document.querySelectorAll('.ql-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      var id = this.dataset.ql;
+      var found = qlLabels.find(function(l) { return l.id === id; });
+      var text = found ? found.emoji + ' ' + found.text : 'Suggestion';
+      if (pendingRange) {
+        addAnnotation('suggestion', text, pendingRange);
+        pendingRange = null;
+      }
+      document.getElementById('qlPopover').classList.remove('active');
+      hideFloatingToolbar();
+    });
+  });
+
+  document.addEventListener('mousedown', function(e) {
+    if (e.target.closest('#qlPopover') || e.target.closest('#tbQuickLabel')) return;
+    document.getElementById('qlPopover').classList.remove('active');
+  });
+
+  // Click overlay to cancel
+  // Hide comment popup on outside click (no backdrop)
+  document.addEventListener('mousedown', function(e) {
+    if (e.target.closest('#creationPopup') || e.target.closest('.floating-toolbar')) return;
+    if (document.getElementById('creationPopup').style.display === 'block') {
+      hideCreationPopup();
+    }
+  });
+
+  // Hide floating toolbar on outside click
+  document.addEventListener('mousedown', function(e) {
+    if (e.target.closest('.floating-toolbar')) return;
+    if (document.getElementById('floatingToolbar').classList.contains('active')) {
+      hideFloatingToolbar();
+    }
+  });
+
+  /* ===== Text Selection Listener ===== */
+
+  let selectionTimeout = null;
+
+  document.getElementById('mdViewer').addEventListener('mouseup', function(e) {
+    // Delay to let the browser finalize selection
+    if (selectionTimeout) clearTimeout(selectionTimeout);
+    selectionTimeout = setTimeout(function() {
+      if (popupActive) return;
+      // Check if click was inside creation popup
+      const popup = document.getElementById('creationPopup');
+      if (popup.style.display === 'block') return;
+
+      handleTextSelection();
+    }, 50);
+  });
+
+  // Also listen for keyboard-based selection (Shift+Arrow)
+  document.addEventListener('keyup', function(e) {
+    if (e.key === 'Shift' || e.key.startsWith('Arrow')) {
+      if (selectionTimeout) clearTimeout(selectionTimeout);
+      selectionTimeout = setTimeout(function() {
+        if (popupActive) return;
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim()) {
+          handleTextSelection();
+        }
+      }, 100);
+    }
+  });
+
+  /* ===== API Client ===== */
+
+  async function postJson(url, data) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = text;
+      try { msg = JSON.parse(text).error || text; } catch(e) {}
+      throw new Error('Request failed: ' + msg);
+    }
+    return res.json();
+  }
+
+  async function fetchPlan() {
+    const res = await fetch('/api/plan');
+    if (!res.ok) throw new Error('Server returned ' + res.status);
+    return res.json();
+  }
+
+  async function submitFeedback() {
+    const body = {
+      feedback: annotations.map(a =>
+        '- [' + a.type.toUpperCase() + '] ' + a.text + '\n  > 原文: "' + a.originalText + '"'
+      ).join('\n\n'),
+      annotations: annotations.map(a => ({
+        id: a.id,
+        type: a.type,
+        text: a.text,
+        originalText: a.originalText,
+        range: a.range,
+        createdAt: a.createdAt
+      }))
+    };
+    await postJson('/api/feedback', body);
+  }
+
+  async function submitApprove() {
+    await postJson('/api/approve', {});
+  }
+
+  async function submitExit() {
+    await postJson('/api/exit', {});
+  }
+
+  /* ===== Bottom Toolbar Actions ===== */
+
+  document.getElementById('btnFeedback').addEventListener('click', async function() {
+    if (annotations.length === 0) return;
+    this.disabled = true;
+    this.textContent = 'Submitting...';
+    try {
+      await submitFeedback();
+      showSubmittedState('Feedback submitted');
+    } catch (err) {
+      alert('Failed to submit feedback: ' + err.message);
+      this.disabled = false;
+      this.textContent = 'Send Feedback';
+    }
+  });
+
+  document.getElementById('btnApprove').addEventListener('click', async function() {
+    this.disabled = true;
+    this.textContent = 'Approving...';
+    try {
+      await submitApprove();
+      showSubmittedState('Approved');
+    } catch (err) {
+      alert('Failed to approve: ' + err.message);
+      this.disabled = false;
+      this.textContent = '✓ Approve';
+    }
+  });
+
+  function showSubmittedState(label) {
+    const banner = document.getElementById('submittedBanner');
+    banner.textContent = '✓ ' + label;
+    banner.classList.add('active');
+
+    // Disable all toolbar buttons
+    document.querySelectorAll('.toolbar-right button').forEach(b => b.disabled = true);
+    document.getElementById('btnFeedback').textContent = 'Submitted';
+    document.getElementById('btnApprove').textContent = 'Approved';
+
+    // Notify server, then close window (same pattern as pi-interview-tool)
+    setTimeout(function() {
+      fetch('/api/exit', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function(){});
+      if (window.glimpse && typeof window.glimpse.close === 'function') {
+        window.glimpse.close();
+      } else {
+        try { window.close(); } catch {}
+      }
+    }, 800);
+  }
+
+  /* ===== Keyboard Shortcuts ===== */
+
+
+
+  /* ===== Init ===== */
+
+  async function init() {
+    // Show source info
+    const sourceEl = document.getElementById('sourceInfo');
+    if (SOURCE_INFO) {
+      sourceEl.textContent = SOURCE_INFO;
+    } else {
+      sourceEl.textContent = MODE === 'annotate-last' ? 'Last message' : 'Annotation';
+    }
+
+    // Show gate tag if applicable
+    if (IS_GATE) {
+      document.getElementById('gateTag').style.display = 'inline-flex';
+    }
+
+    // Theme toggle: load saved preference, toggle via mod+shift+L
+    (function initTheme() {
+      var saved = localStorage.getItem('pi-annotate-theme');
+      var isDark = saved !== 'light';
+      document.documentElement.classList.toggle('light-mode', !isDark);
+      document.addEventListener('keydown', function themeKeydown(e) {
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'l' || e.key === 'L')) {
+          e.preventDefault();
+          isDark = !isDark;
+          document.documentElement.classList.toggle('light-mode', !isDark);
+          localStorage.setItem('pi-annotate-theme', isDark ? 'dark' : 'light');
+        }
+      });
+    })();
+
+    // Approve button: disabled when annotations exist
+    function updateApproveButton() {
+      var btn = document.getElementById('btnApprove');
+      btn.disabled = annotations.length > 0;
+      btn.title = annotations.length > 0 ? 'Remove annotations first to approve without feedback' : 'Approve without feedback';
+    }
+    // Patch updateAll to call updateApproveButton
+    var _origUpdateAll = updateAll;
+    updateAll = function() {
+      _origUpdateAll();
+      updateApproveButton();
+    };
+
+    // Detect mod key label
+    const isMac = /Mac/i.test(navigator.userAgent) && !/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    document.querySelectorAll('.mod-key').forEach(el => {
+      el.textContent = isMac ? '⌘' : 'Ctrl';
+    });
+
+    try {
+      planData = await fetchPlan();
+    } catch (err) {
+      // Fallback to demo content when server unavailable
+      document.getElementById('loadingState').style.display = 'none';
+      const demoPlan = '# Demo Plan\n\nThis is a demonstration of the annotation UI. ' +
+        'The server was not reachable, so demo content is shown.\n\n' +
+        '## Section 1\n\nSelect any text to create an annotation. ' +
+        'Annotations appear in the right panel with different types:\n\n' +
+        '- **Comment** (blue) - General feedback\n' +
+        '- **Suggestion** (green) - Improvement ideas\n' +
+        '- **Issue** (red) - Problems to fix\n' +
+        '- **Praise** (yellow) - Positive feedback\n\n' +
+        '## Section 2\n\n' +
+        'Code block example:\n\n' +
+        '```javascript\n' +
+        'function hello() {\n' +
+        '  console.log(\"Hello, World!\");\n' +
+        '}\n' +
+        '```\n\n' +
+        '> Blockquote: This is a quoted text for annotation testing.\n\n' +
+        '### Nested Lists\n\n' +
+        '1. First item\n' +
+        '2. Second item\n' +
+        '    - Sublist A\n' +
+        '    - Sublist B\n' +
+        '3. Third item\n\n' +
+        'Use the **Send Feedback** button at the bottom to submit your annotations to the server. ' +
+        'Or use **Exit** to close without submitting.';
+      planData = { plan: demoPlan, mode: 'annotate', sourceInfo: '(Demo Mode)' };
+      renderContent();
+      return;
+    }
+
+    // Render markdown
+    const contentDiv = document.getElementById('content');
+    document.getElementById('loadingState').style.display = 'none';
+    contentDiv.style.display = 'block';
+    contentDiv.innerHTML = renderMarkdown(planData.plan || '');
+
+    // Fix tooltip positioning for blocks (prevent overflow)
+    document.querySelectorAll('.md-block').forEach(block => {
+      // No additional setup needed
+    });
+
+    // Add subtle scroll margin to blocks for smooth scrolling
+    const style = document.createElement('style');
+    style.textContent = '.md-block { scroll-margin-top: 100px; }';
+    document.head.appendChild(style);
+
+    // Update source info from API if not already set
+    if (!SOURCE_INFO && planData.sourceInfo) {
+      sourceEl.textContent = planData.sourceInfo;
+    }
+
+    // Initial badge update
+    updateBadge();
+    updateButtons();
+
+    // Notify server when window is closed (reliable using fetch + keepalive)
+    function notifyExit() {
+      try {
+        fetch('/api/exit', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      } catch {}
+    }
+    window.addEventListener('beforeunload', notifyExit);
+    window.addEventListener('pagehide', notifyExit);
+    // Also send initial heartbeat to mark this session as active
+    setInterval(function() {
+      try { fetch('/api/health', { method: 'GET', keepalive: true }); } catch {}
+    }, 60000);
+  }
+
+  init();
+
+})();
+</script>
+</body>
+</html>

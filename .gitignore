@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.DS_Store
+tmp/
+/.pi/sessions
+/参考
+/.pi
+docs/

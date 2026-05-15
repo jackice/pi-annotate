@@ -1,0 +1,33 @@
+{
+  "name": "@jackice/pi-annotate",
+  "version": "0.1.0",
+  "description": "Visual annotation extension for pi coding agent - annotate context messages and markdown documents",
+  "author": "jackice",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi",
+    "pi-coding-agent",
+    "pi-package",
+    "annotation",
+    "review",
+    "extension"
+  ],
+  "files": [
+    "index.ts",
+    "server.ts",
+    "form/"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "@types/node": "^25.8.0"
+  }
+}
