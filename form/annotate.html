@@ -332,6 +332,11 @@
     .md-block[data-tooltip]:hover::after {
       display: block;
     }
+    /* 当批注块靠近视口顶部时，将 tooltip 翻转到下方避免被裁剪 */
+    .md-block.tooltip-below::after {
+      bottom: auto;
+      top: calc(100% + 4px);
+    }
 
     /* ===== Annotation Panel ===== */
     .annotation-panel {
@@ -1535,7 +1540,7 @@
     const blocks = document.querySelectorAll('.md-block');
     // Remove existing highlights
     blocks.forEach(b => {
-      b.className = b.className.replace(/\bhighlight-\w+\b/g, '').trim();
+      b.className = b.className.replace(/\b(highlight-\w+|tooltip-below)\b/g, '').trim();
       b.removeAttribute('data-tooltip');
       (b.querySelectorAll('[style]') || []).forEach(el => {
         // Keep only visual inline styles, don't strip
@@ -2075,6 +2080,57 @@
     }
   });
 
+  // 防止 tooltip 在视口顶部被裁剪：检测位置后动态翻转方向
+  // 创建隐藏的测量元素，用于动态计算 tooltip 实际高度
+  var _tooltipMeasure = document.createElement('div');
+  _tooltipMeasure.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;' +
+    'max-width:280px;padding:6px 10px;border:1px solid transparent;' +
+    'font-size:12px;line-height:1.4;white-space:pre-wrap;';
+  document.body.appendChild(_tooltipMeasure);
+  function _tooltipHeight(content) {
+    _tooltipMeasure.textContent = content || '';
+    return _tooltipMeasure.offsetHeight + 4;  // gap between block and tooltip
+  }
+  // 页面卸载时清理测量元素
+  window.addEventListener('pagehide', function() {
+    if (_tooltipMeasure && _tooltipMeasure.parentNode) {
+      _tooltipMeasure.parentNode.removeChild(_tooltipMeasure);
+    }
+    _tooltipMeasure = null;
+  });
+
+  var _tooltipHeightCached = 0;
+  var _hoveredBlock = null;
+  document.addEventListener('mouseover', function(e) {
+    var block = e.target.closest('.md-block[data-tooltip]');
+    if (block) {
+      if (block === _hoveredBlock) return;  // 同一块内移动子元素时跳过重复计算
+      _hoveredBlock = block;
+      _tooltipHeightCached = _tooltipHeight(block.getAttribute('data-tooltip'));
+      var rect = block.getBoundingClientRect();
+      block.classList.toggle('tooltip-below', rect.top < _tooltipHeightCached);
+    }
+  });
+  document.addEventListener('mouseout', function(e) {
+    // 使用 '.md-block' 而非 '.md-block[data-tooltip]' 避免 data-tooltip
+    // 被 highlightAnnotations() 移除后 class 无法清理的问题
+    var block = e.target.closest('.md-block');
+    if (block && !block.contains(e.relatedTarget)) {
+      block.classList.remove('tooltip-below');
+      if (_hoveredBlock === block) {
+        _hoveredBlock = null;
+        _tooltipHeightCached = 0;
+      }
+    }
+  });
+  // 悬停时滚动重新评估位置
+  document.addEventListener('scroll', function() {
+    if (_hoveredBlock && _hoveredBlock.hasAttribute('data-tooltip')) {
+      var rect = _hoveredBlock.getBoundingClientRect();
+      _hoveredBlock.classList.toggle('tooltip-below', rect.top < _tooltipHeightCached);
+    }
+  }, { passive: true });
+
   /* ===== Init ===== */
 
   async function init() {
@@ -2155,6 +2211,7 @@
         'Use the **Send Feedback** button at the bottom to submit your annotations to the server. ' +
         'Or use **Exit** to close without submitting.';
       planData = { plan: demoPlan, mode: 'annotate', sourceInfo: '(Demo Mode)' };
+      _hoveredBlock = null;  // 即将替换 DOM，清除悬停引用
       var contentDiv = document.getElementById('content');
       document.getElementById('loadingState').style.display = 'none';
       contentDiv.style.display = 'block';
@@ -2163,6 +2220,7 @@
     }
 
     // Render markdown
+    _hoveredBlock = null;  // 即将替换 DOM，清除悬停引用
     var contentDiv = document.getElementById('content');
     document.getElementById('loadingState').style.display = 'none';
     contentDiv.style.display = 'block';
