@@ -5,7 +5,7 @@ A visual annotation extension for pi-agent that opens an interactive annotation 
 ## Installation
 
 ```bash
-pi install pi-annotate
+pi install npm:@jackice/pi-annotate
 ```
 
 Or install from a local path:
