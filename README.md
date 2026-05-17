@@ -3,9 +3,9 @@
 A visual annotation extension for pi-agent that opens an interactive annotation UI for reviewing context messages and markdown documents. On macOS, uses [Glimpse](https://github.com/hazat/glimpse) to render in a native WKWebView window; falls back to a browser tab on other platforms.
 
 <p align="center">
-  <img src="docs/demo/annotation-ui.png" alt="pi-annotate 注释界面截图" width="100%">
+  <img src="docs/demo/annotation-ui.png" alt="pi-annotate annotation UI screenshot" width="100%">
   <br>
-  <em>注释界面：选中文本后弹出浮动工具栏，批注显示在右侧面板</em>
+  <em>Annotation UI: select text to reveal a floating toolbar, annotations appear in the right panel</em>
 </p>
 
 ## Installation
@@ -24,7 +24,7 @@ Restart pi or run `/reload` to load the extension.
 
 **Requirements:**
 - pi-agent v0.35.0 or later (extensions API)
-- For native macOS window: `npm install -g glimpseui` (optional, falls back to browser if not installed)
+- For native macOS window: `npm install -g glimpseui@">=0.8.1"` (optional, falls back to browser if not installed) — Glimpse 0.8.1+ required for native clipboard support (`⌘C`/`⌘V`)
 
 ## Features
 
@@ -32,7 +32,7 @@ Restart pi or run `/reload` to load the extension.
 - **Document Annotation**: Open any markdown file (specs, plans, design docs) in a visual annotation UI
 - **Auto-Detect**: Automatically detects new spec/plan documents in `docs/superpowers/specs/` or `docs/superpowers/plans/` and opens the annotation UI
 - **Annotation Types**: Comment, Suggestion, Issue, and Praise — each with distinct color coding
-- **Quick Labels**: One-click preset labels for common feedback (需澄清说明, 缺少关键细节, 需要验证假设, etc.)
+- **Quick Labels**: One-click preset labels for common feedback (needs clarification, missing details, verify assumption, etc.)
 - **Floating Toolbar**: Select text to reveal a compact toolbar with Comment, Delete, Quick Label, and Looks Good actions
 - **Inline Comment Popup**: Click Comment on the toolbar to add detailed text feedback directly above/below the selected text
 - **Feedback Delivery**: Annotations are sent back to the agent as a structured follow-up message
@@ -114,16 +114,16 @@ Preset labels for common feedback on specs, plans, and messages:
 
 | Key | Label | Description |
 |-----|-------|-------------|
-| 1 | ❓ 需澄清说明 | Needs clarification |
-| 2 | 📋 缺少关键细节 | Missing key details |
-| 3 | 🔍 需要验证假设 | Assumption needs verification |
-| 4 | 🔬 缺少具体示例 | Missing concrete example |
-| 5 | ⚖️ 需权衡利弊 | Needs trade-off analysis |
-| 6 | 🏗️ 过度设计 | Over-engineered |
-| 7 | 🚫 超出范围 | Out of scope |
-| 8 | ⚠️ 遗漏边界情况 | Missing edge cases |
-| 9 | 📐 结构清晰 | Well-structured |
-| 0 | 👍 方案不错 | Good approach |
+| 1 | ❓ Needs Clarification | The selected section requires further explanation |
+| 2 | 📋 Missing Details | Key details or specifics are absent |
+| 3 | 🔍 Verify Assumption | Underlying assumption needs to be validated |
+| 4 | 🔬 Missing Example | A concrete example would improve understanding |
+| 5 | ⚖️ Trade-off Analysis | Pros and cons of this approach should be discussed |
+| 6 | 🏗️ Over-engineered | The proposed solution is more complex than needed |
+| 7 | 🚫 Out of Scope | This item falls outside the defined scope |
+| 8 | ⚠️ Edge Case Missing | Potential edge cases have not been addressed |
+| 9 | 📐 Well-structured | The structure and organization are clear |
+| 0 | 👍 Good Approach | The proposed approach is sound |
 
 ### Annotation Panel
 
@@ -158,23 +158,23 @@ pi-annotate/
 When you send feedback, the agent receives a structured message like:
 
 ```
-## 批注反馈
+## Annotation Feedback
 
-以下是对 docs/superpowers/specs/my-design.md 的批注意见：
+The following feedback was provided for docs/superpowers/specs/my-design.md:
 
-- **suggestion**: 建议补充具体的 API 设计
-  > 原文: "使用 RESTful API 进行通信"
+- **suggestion**: Consider adding concrete API design details
+  > Original text: "Communication uses a RESTful API"
 
-- **issue**: 缺少错误处理策略
-  > 原文: "系统将在发生错误时返回错误信息"
+- **issue**: Error handling strategy is missing
+  > Original text: "The system will return an error message on failure"
 
-请修复以上问题。
+Please address the issues above.
 ```
 
 The ending is context-aware:
-- If there are **issues**: "请修复以上问题。"
-- If there are **suggestions**: "请根据以上建议进行修订。"
-- Otherwise: "请参考以上批注意见。"
+- If there are **issues**: "Please address the issues above."
+- If there are **suggestions**: "Please revise according to the suggestions above."
+- Otherwise: "Please consider the feedback above."
 
 ## Limits
 
