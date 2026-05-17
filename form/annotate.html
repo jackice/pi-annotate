@@ -2051,35 +2051,6 @@
 
   /* ===== Keyboard Shortcuts ===== */
 
-  // WKWebView 中无 Edit 菜单时 Cmd+V 无法路由到文本框
-  // 手动拦截 Cmd+V/Ctrl+V，使用 clipboard API 读取剪贴板
-  // 注：macOS WKWebView 首次使用 clipboard API 会弹出系统权限对话框
-  //    授权后本次会话内不再弹出
-  document.addEventListener('keydown', function(e) {
-    if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
-      var target = document.activeElement;
-      if (target && target.id === 'annTextInput') {
-        e.preventDefault();
-        navigator.clipboard.readText().then(function(text) {
-          if (text && document.activeElement === target) {
-            var start = target.selectionStart;
-            var end = target.selectionEnd;
-            var before = target.value.slice(0, start);
-            var after = target.value.slice(end);
-            target.value = before + text + after;
-            var newPos = start + text.length;
-            target.selectionStart = newPos;
-            target.selectionEnd = newPos;
-            var evt = new Event('input', { bubbles: true });
-            target.dispatchEvent(evt);
-          }
-        }).catch(function(err) {
-          console.warn('[Clipboard] readText failed:', err);
-        });
-      }
-    }
-  });
-
   // 防止 tooltip 在视口顶部被裁剪：检测位置后动态翻转方向
   // 创建隐藏的测量元素，用于动态计算 tooltip 实际高度
   var _tooltipMeasure = document.createElement('div');
