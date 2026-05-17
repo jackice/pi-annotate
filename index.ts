@@ -189,7 +189,7 @@ async function openAnnotationServer(
         let windowClosed = false;
         glimpseWin.on("closed", () => {
           windowClosed = true;
-          fetch(`${server.url}/api/exit`, { method: "POST", keepalive: true }).catch(() => {});
+          server.resolveDecision({ action: "exit" });
         });
 
         // 等待决策
@@ -361,7 +361,7 @@ export default function (pi: ExtensionAPI) {
             let windowClosed = false;
             glimpseWin.on("closed", () => {
               windowClosed = true;
-              fetch(`${server.url}/api/exit`, { method: "POST", keepalive: true }).catch(() => {});
+              server.resolveDecision({ action: "exit" });
             });
             const decision = await server.waitForDecision();
             if (decision.action === "exit" && windowClosed) {

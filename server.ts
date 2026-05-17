@@ -35,6 +35,11 @@ interface AnnotationServerHandle {
     feedback?: string;
     annotations?: Annotation[];
   }>;
+  resolveDecision: (result: {
+    action: "feedback" | "approve" | "exit";
+    feedback?: string;
+    annotations?: Annotation[];
+  }) => void;
 }
 
 const MAX_BODY_SIZE = 5 * 1024 * 1024;
@@ -317,6 +322,7 @@ export async function startAnnotationServer(
       server.close();
     },
     waitForDecision: () => decisionPromise,
+    resolveDecision: resolveOnce,
   };
 
   return handle;
