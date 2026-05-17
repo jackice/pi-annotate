@@ -124,9 +124,9 @@ function formatAnnotationFeedback(
   if (!annotations || annotations.length === 0) return "";
   const items = annotations
     .map((a) => {
-      const tag = a.type === "comment" ? "评论" : a.type === "suggestion" ? "建议修改" : a.type === "issue" ? "问题" : "表扬";
+      const tag = a.type === "comment" ? "Comment" : a.type === "suggestion" ? "Suggestion" : a.type === "issue" ? "Issue" : "Praise";
       return `- **${a.type}**: ${tag}
-  > 原文: "${a.originalText || "(无原文)"}"
+  > Original text: "${a.originalText || "(none)"}"
   ${a.text}`;
     })
     .join("\n\n");
@@ -135,14 +135,14 @@ function formatAnnotationFeedback(
   const hasSuggestions = annotations.some((a) => a.type === "suggestion");
   let ending: string;
   if (hasIssues) {
-    ending = "请修复以上问题。";
+    ending = "Please address the issues above.";
   } else if (hasSuggestions) {
-    ending = "请根据以上建议进行修订。";
+    ending = "Please revise according to the suggestions above.";
   } else {
-    ending = "请参考以上批注意见。";
+    ending = "Please consider the feedback above.";
   }
 
-  return `## 批注反馈\n\n以下是对 ${sourceInfo} 的批注意见：\n\n${items}\n\n${ending}`;
+  return `## Annotation Feedback\n\nThe following feedback was provided for ${sourceInfo}:\n\n${items}\n\n${ending}`;
 }
 
 // ── Shared annotation flow ─────────────────────────────────────────────
@@ -185,7 +185,7 @@ async function openAnnotationServer(
         glimpseWin = openInGlimpse(glimpseOpenFn, server.url, `批注: ${options.sourceInfo}`);
         ctx.ui.notify("批注窗口已打开，完成后关闭即可。", "info");
 
-        // 监听 Glimpse 窗口关闭事件 — 窗口关闭时自动触发退出
+        // 监听 Glimpse 窗口关闭事件 — 窗口关闭时直接决议退出，不依赖 HTTP fetch
         let windowClosed = false;
         glimpseWin.on("closed", () => {
           windowClosed = true;
@@ -237,7 +237,7 @@ function handleAnnotationDecision(
       }
       // 如果还没有反馈文本，使用默认格式
       if (!feedbackText) {
-        feedbackText = `## 批注反馈\n\n以下是对 ${sourceInfo} 的批注意见，请根据以上建议进行修订。`;
+        feedbackText = `## Annotation Feedback\n\nThe following feedback was provided for ${sourceInfo}. Please revise according to the suggestions above.`;
       }
       pi.sendUserMessage(feedbackText, { deliverAs: "followUp" });
       break;
