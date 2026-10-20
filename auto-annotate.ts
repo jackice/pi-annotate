@@ -20,12 +20,14 @@ export interface AutoAnnotateConfig {
 export interface AutoAnnotateCandidate {
   path: string;
   markdown: string;
+  signal: AbortSignal;
   onClosedWithoutFeedback: () => void;
 }
 
 interface PendingWrite {
   existedBefore: boolean;
-  tool: "write" | "edit";
+  succeeded: number;
+  pendingCalls: number;
 }
 
 const DEFAULT_CONFIG: AutoAnnotateConfig = {
@@ -94,7 +96,7 @@ export function loadConfig(cwd: string): { config: AutoAnnotateConfig; warning?:
 }
 
 export function globToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  const escaped = pattern.replace(/[.+^${}()|[\]\\?]/g, "\\$&");
   const source = escaped
     .replace(/\*\*\//g, "\u0000")
     .replace(/\*\*/g, ".*")
@@ -119,73 +121,95 @@ export function registerAutoAnnotate(
   open: (ctx: ExtensionContext, candidate: AutoAnnotateCandidate) => Promise<void>,
 ): void {
   const pending = new Map<string, PendingWrite>();
+  const callPaths = new Map<string, string>();
   const annotatedHash = new Map<string, string>();
   const muted = new Set<string>();
   let queue: Promise<void> = Promise.resolve();
   let config: AutoAnnotateConfig | null = null;
+  let abortController = new AbortController();
 
   function ensureConfig(ctx: ExtensionContext): AutoAnnotateConfig {
     if (config) return config;
     const loaded = loadConfig(ctx.cwd);
     config = loaded.config;
     if (loaded.warning) {
-      try {
-        ctx.ui.notify(loaded.warning, "warning");
-      } catch {
-        // ctx 可能已失效，忽略
-      }
+      ctx.ui.notify(loaded.warning, "warning");
     }
     return config;
+  }
+
+  function resetSessionState(): void {
+    abortController.abort();
+    abortController = new AbortController();
+    pending.clear();
+    callPaths.clear();
+    annotatedHash.clear();
+    muted.clear();
+    queue = Promise.resolve();
   }
 
   function drain(ctx: ExtensionContext): void {
     const current = ensureConfig(ctx);
     const candidates = [...pending.entries()];
     pending.clear();
+    callPaths.clear();
     if (current.autoOpen === "off") return;
 
+    const signal = abortController.signal;
+
     for (const [path, info] of candidates) {
+      // tool_call 先于执行触发，只有成功完成的结果才算真正写入
+      if (info.succeeded === 0) continue;
       if (current.autoOpen === "create" && info.existedBefore) continue;
       if (muted.has(path)) continue;
-      if (!existsSync(path)) continue;
 
       let markdown: string;
       try {
         markdown = readFileSync(path, "utf-8");
-      } catch {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        ctx.ui.notify(`无法读取 ${path}: ${message}`, "warning");
         continue;
       }
 
       const hash = contentHash(markdown);
       if (annotatedHash.get(path) === hash) continue;
-      annotatedHash.set(path, hash);
 
       queue = queue
-        .then(() =>
-          open(ctx, {
+        .then(async () => {
+          if (signal.aborted) return;
+          await open(ctx, {
             path,
             markdown,
+            signal,
             onClosedWithoutFeedback: () => {
               if (current.onWindowClose === "mute") muted.add(path);
             },
-          }),
-        )
+          });
+          if (!signal.aborted) annotatedHash.set(path, hash);
+        })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
           console.error(`自动批注失败: ${message}`);
+          // 队列必须继续消费后续候选，因此 UI 失效也不能向上抛
           try {
             ctx.ui.notify(`自动批注失败: ${message}`, "error");
           } catch {
-            // ctx 可能已失效，忽略
+            // ctx 已随会话失效
           }
         });
     }
   }
 
   pi.on("session_start", (_event, ctx) => {
+    resetSessionState();
     // 新会话重新读取配置，避免沿用上一个项目的设置
     config = null;
     ensureConfig(ctx);
+  });
+
+  pi.on("session_shutdown", () => {
+    resetSessionState();
   });
 
   pi.on("tool_call", (event, ctx) => {
@@ -202,8 +226,27 @@ export function registerAutoAnnotate(
     const previous = pending.get(absPath);
     pending.set(absPath, {
       existedBefore: previous?.existedBefore ?? existsSync(absPath),
-      tool: event.toolName,
+      succeeded: previous?.succeeded ?? 0,
+      pendingCalls: (previous?.pendingCalls ?? 0) + 1,
     });
+    callPaths.set(event.toolCallId, absPath);
+  });
+
+  pi.on("tool_result", (event) => {
+    if (event.toolName !== "write" && event.toolName !== "edit") return;
+    const absPath = callPaths.get(event.toolCallId);
+    if (!absPath) return;
+    callPaths.delete(event.toolCallId);
+
+    const entry = pending.get(absPath);
+    if (!entry) return;
+    entry.pendingCalls = Math.max(0, entry.pendingCalls - 1);
+    if (!event.isError) {
+      entry.succeeded += 1;
+    }
+    if (entry.pendingCalls === 0 && entry.succeeded === 0) {
+      pending.delete(absPath);
+    }
   });
 
   pi.on("agent_settled", (_event, ctx) => {

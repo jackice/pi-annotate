@@ -169,6 +169,35 @@ async function readAnnotateHtml(): Promise<string> {
   return readFileSync(htmlPath, "utf-8");
 }
 
+type AnnotationDecision = {
+  action: "feedback" | "approve" | "exit";
+  feedback?: string;
+  annotations?: Annotation[];
+};
+
+async function waitForDecisionAbortable(
+  server: { waitForDecision: () => Promise<AnnotationDecision> },
+  signal?: AbortSignal,
+): Promise<AnnotationDecision | null> {
+  if (!signal) return server.waitForDecision();
+  if (signal.aborted) return null;
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => resolve(null);
+    signal.addEventListener("abort", onAbort, { once: true });
+    server.waitForDecision().then(
+      (decision) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(decision);
+      },
+      (err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
 async function openAnnotationSession(
   pi: ExtensionAPI,
   ctx: ExtensionContext,
@@ -176,6 +205,7 @@ async function openAnnotationSession(
     markdown: string;
     mode: "annotate" | "annotate-last";
     sourceInfo: string;
+    signal?: AbortSignal;
     onClosedWithoutFeedback?: () => void;
   },
 ): Promise<void> {
@@ -189,25 +219,28 @@ async function openAnnotationSession(
     gate: false,
   });
 
-  let glimpseWin: GlimpseWindow | null = null;
-
   // macOS 上优先 Glimpse，回退浏览器
   if (os.platform() === "darwin") {
     const glimpseOpenFn = await getGlimpseOpen();
     if (glimpseOpenFn) {
       try {
-        glimpseWin = openInGlimpse(glimpseOpenFn, server.url, `批注: ${options.sourceInfo}`);
+        const win = openInGlimpse(glimpseOpenFn, server.url, `批注: ${options.sourceInfo}`);
         ctx.ui.notify("批注窗口已打开，完成后关闭即可。", "info");
 
         // 监听 Glimpse 窗口关闭事件 — 窗口关闭时直接决议退出，不依赖 HTTP fetch
         let windowClosed = false;
-        glimpseWin.on("closed", () => {
+        win.on("closed", () => {
           windowClosed = true;
           server.resolveDecision({ action: "exit" });
         });
 
-        // 等待决策
-        const decision = await server.waitForDecision();
+        // 等待决策；会话切换时中止
+        const decision = await waitForDecisionAbortable(server, options.signal);
+        if (!decision) {
+          win.close();
+          server.stop();
+          return;
+        }
 
         // 窗口关闭触发的 exit，静默处理
         if (decision.action === "exit" && windowClosed) {
@@ -228,7 +261,11 @@ async function openAnnotationSession(
   // 回退：浏览器打开
   try {
     await openUrl(pi, server.url);
-    const decision = await server.waitForDecision();
+    const decision = await waitForDecisionAbortable(server, options.signal);
+    if (!decision) {
+      server.stop();
+      return;
+    }
     if (decision.action === "exit") options.onClosedWithoutFeedback?.();
     handleAnnotationDecision(pi, ctx, decision, options.sourceInfo, options.markdown);
     server.stop();
@@ -335,6 +372,7 @@ export default function (pi: ExtensionAPI) {
       markdown: candidate.markdown,
       mode: "annotate",
       sourceInfo: candidate.path,
+      signal: candidate.signal,
       onClosedWithoutFeedback: candidate.onClosedWithoutFeedback,
     });
   });
