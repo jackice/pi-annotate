@@ -1,6 +1,6 @@
 {
   "name": "@jackice/pi-annotate",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Visual annotation extension for pi coding agent - annotate context messages and markdown documents",
   "author": "jackice",
   "license": "MIT",
