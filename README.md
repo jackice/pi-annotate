@@ -30,7 +30,7 @@ Restart pi or run `/reload` to load the extension.
 
 - **Message Annotation**: Annotate the last assistant message with visual feedback — select text, add comments, and send feedback to the agent
 - **Document Annotation**: Open any markdown file (specs, plans, design docs) in a visual annotation UI
-- **Auto-Detect**: Automatically detects new spec/plan documents in `docs/superpowers/specs/` or `docs/superpowers/plans/` and opens the annotation UI
+- **Auto-Detect**: Opens the annotation UI after the agent creates or modifies a document matching `include` (default `docs/superpowers/**/*.md`), once the agent run settles
 - **Annotation Types**: Comment, Suggestion, Issue, and Praise — each with distinct color coding
 - **Quick Labels**: One-click preset labels for common feedback (needs clarification, missing details, verify assumption, etc.)
 - **Floating Toolbar**: Select text to reveal a compact toolbar with Comment, Delete, Quick Label, and Looks Good actions
@@ -48,7 +48,7 @@ Restart pi or run `/reload` to load the extension.
 │ writes  ├────►│                                      ├────►│receives │
 │  doc    │     │  select text → add annotation → send  │     │feedback │
 └─────────┘     │         ↑                             │     └─────────┘
-                │         └── auto-detect path ─────────┤
+                │         └── write/edit trigger ────────┤
                 └──────────────────────────────────────┘
 ```
 
@@ -65,7 +65,7 @@ Restart pi or run `/reload` to load the extension.
 
 ## Usage
 
-The extension provides two slash commands and one auto-detection hook:
+The extension provides two slash commands and a write/edit-based auto-annotation hook:
 
 ### `/annotate-last`
 
@@ -93,7 +93,32 @@ Supports:
 
 ### Auto-Detect
 
-When an agent creates or modifies a file under `docs/superpowers/specs/` or `docs/superpowers/plans/`, the extension automatically detects the file path in the assistant's response and opens the annotation UI.
+The extension listens to `write` and `edit` tool calls. When the agent writes or modifies a markdown file matching `include`, the annotation UI opens after the agent run settles (`agent_settled`). Reading a document or mentioning its path in a response never triggers it. Auto-open does not block the session; feedback is delivered as a follow-up message.
+
+- The same file opens at most once per content version; closing the window mutes it for the rest of the session.
+- Only newly created files open by default; set `autoOpen` to `"write"` to include modifications, or `"off"` to disable.
+
+### Configuration
+
+`pi-annotate` reads its own config file (pi's `settings.json` schema has no extension section):
+
+1. Global: `~/.pi/agent/annotate.json`
+2. Project: `<project>/.pi/annotate.json` (overrides global)
+3. Environment: `PI_ANNOTATE_AUTO=off|create|write`
+
+```json
+{
+  "autoOpen": "create",
+  "include": ["docs/superpowers/**/*.md"],
+  "onWindowClose": "mute"
+}
+```
+
+| Key | Values | Default | Description |
+|-----|--------|---------|-------------|
+| `autoOpen` | `"off" \| "create" \| "write"` | `"create"` | Disable auto-open, only new files, or new and modified files |
+| `include` | `string[]` | `["docs/superpowers/**/*.md"]` | Globs relative to the project root; `**` and `*` supported |
+| `onWindowClose` | `"mute" \| "ignore"` | `"mute"` | Mute the file for the session after the window is closed |
 
 ## Annotation UI
 
@@ -146,6 +171,7 @@ All annotations appear in the right sidebar panel. Each annotation shows:
 ```
 pi-annotate/
 ├── index.ts              # Extension entry point, commands, Glimpse integration
+├── auto-annotate.ts      # Auto-open trigger, config, de-duplication
 ├── server.ts              # Annotation HTTP server (API routes)
 ├── form/
 │   └── annotate.html      # Annotation UI (pure HTML/CSS/JS, no build step)

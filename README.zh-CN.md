@@ -30,7 +30,7 @@ pi install /path/to/pi-annotate
 
 - **消息批注**：为最后一条 assistant 消息添加可视化批注 — 选择文本、添加评论、发送反馈给 agent
 - **文档批注**：在任何 markdown 文件（spec、plan、设计文档）上打开可视化批注界面
-- **自动检测**：自动检测 `docs/superpowers/specs/` 或 `docs/superpowers/plans/` 下的新文档并打开批注界面
+- **自动检测**：agent 通过 `write`/`edit` 创建或修改匹配 `include`（默认 `docs/superpowers/**/*.md`）的文档后，在 run 结束时打开批注界面
 - **批注类型**：评论（comment）、建议修改（suggestion）、问题（issue）和表扬（praise）— 各有不同颜色标识
 - **快捷标签**：一键预设标签用于常见反馈（需澄清说明、缺少关键细节、需要验证假设等）
 - **浮动工具栏**：选中文本后弹出紧凑工具栏，包含评论、删除、快捷标签和赞许操作
@@ -48,7 +48,7 @@ pi install /path/to/pi-annotate
 │ 写文档   ├────►│                                      ├────►│ 接收反馈  │
 │         │     │  选中文本 → 添加批注 → 发送反馈        │     │         │
 └─────────┘     │         ↑                             │     └─────────┘
-                │         └── 自动检测路径 ──────────────┤
+                │         └── write/edit 触发 ─────────┤
                 └──────────────────────────────────────┘
 ```
 
@@ -65,7 +65,7 @@ pi install /path/to/pi-annotate
 
 ## 使用方法
 
-扩展提供两个斜杠命令和一个自动检测钩子：
+扩展提供两个斜杠命令和一个基于 write/edit 的自动批注钩子：
 
 ### `/annotate-last`
 
@@ -93,7 +93,32 @@ pi install /path/to/pi-annotate
 
 ### 自动检测
 
-当 agent 创建或修改 `docs/superpowers/specs/` 或 `docs/superpowers/plans/` 下的文件时，扩展自动检测 assistant 回复中的文件路径并打开批注界面。
+扩展监听 `write` 与 `edit` 工具调用。当 agent 写入或修改匹配 `include` 的 markdown 文件后，会在 agent run 完全结束时（`agent_settled`）打开批注界面；仅读取文档或在回复中提及路径不会触发。自动打开不阻塞会话，反馈以 follow-up 消息回传给 agent。
+
+- 同一文件在内容未变化时只打开一次；关闭窗口后本会话不再自动打开该文件。
+- 默认只打开新建文件；设置 `autoOpen` 为 `"write"` 可包含修改，设为 `"off"` 关闭自动打开。
+
+### 配置
+
+`pi-annotate` 使用自己的配置文件（pi 的 `settings.json` schema 没有扩展自定义段）：
+
+1. 全局：`~/.pi/agent/annotate.json`
+2. 项目：`<项目>/.pi/annotate.json`（覆盖全局）
+3. 环境变量：`PI_ANNOTATE_AUTO=off|create|write`
+
+```json
+{
+  "autoOpen": "create",
+  "include": ["docs/superpowers/**/*.md"],
+  "onWindowClose": "mute"
+}
+```
+
+| 字段 | 取值 | 默认值 | 说明 |
+|------|------|--------|------|
+| `autoOpen` | `"off" \| "create" \| "write"` | `"create"` | 关闭自动打开、仅新建文件、新建与修改文件 |
+| `include` | `string[]` | `["docs/superpowers/**/*.md"]` | 相对项目根目录的 glob，支持 `**` 与 `*` |
+| `onWindowClose` | `"mute" \| "ignore"` | `"mute"` | 关窗后本会话静音该文件 |
 
 ## 批注界面
 
@@ -146,6 +171,7 @@ pi install /path/to/pi-annotate
 ```
 pi-annotate/
 ├── index.ts              # 扩展入口、命令、Glimpse 集成
+├── auto-annotate.ts      # 自动打开触发、配置、去重
 ├── server.ts              # 批注 HTTP 服务器（API 路由）
 ├── form/
 │   └── annotate.html      # 批注界面（纯 HTML/CSS/JS，无构建步骤）

@@ -14,6 +14,7 @@ import type {
   ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { startAnnotationServer, type Annotation } from "./server.js";
+import { registerAutoAnnotate } from "./auto-annotate.js";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -168,13 +169,14 @@ async function readAnnotateHtml(): Promise<string> {
   return readFileSync(htmlPath, "utf-8");
 }
 
-async function openAnnotationServer(
+async function openAnnotationSession(
   pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
+  ctx: ExtensionContext,
   options: {
     markdown: string;
     mode: "annotate" | "annotate-last";
     sourceInfo: string;
+    onClosedWithoutFeedback?: () => void;
   },
 ): Promise<void> {
   const htmlContent = await readAnnotateHtml();
@@ -186,8 +188,6 @@ async function openAnnotationServer(
     sourceInfo: options.sourceInfo,
     gate: false,
   });
-
-
 
   let glimpseWin: GlimpseWindow | null = null;
 
@@ -211,6 +211,7 @@ async function openAnnotationServer(
 
         // 窗口关闭触发的 exit，静默处理
         if (decision.action === "exit" && windowClosed) {
+          options.onClosedWithoutFeedback?.();
           server.stop();
           return;
         }
@@ -228,6 +229,7 @@ async function openAnnotationServer(
   try {
     await openUrl(pi, server.url);
     const decision = await server.waitForDecision();
+    if (decision.action === "exit") options.onClosedWithoutFeedback?.();
     handleAnnotationDecision(pi, ctx, decision, options.sourceInfo, options.markdown);
     server.stop();
   } catch (err) {
@@ -237,7 +239,7 @@ async function openAnnotationServer(
 
 function handleAnnotationDecision(
   pi: ExtensionAPI,
-  ctx: ExtensionCommandContext,
+  ctx: ExtensionContext,
   decision: { action: "feedback" | "approve" | "exit"; feedback?: string; annotations?: Annotation[] },
   sourceInfo: string,
   originalMarkdown: string,
@@ -281,7 +283,7 @@ export default function (pi: ExtensionAPI) {
 
       ctx.ui.notify("正在打开最后一条消息的批注...", "info");
 
-      return openAnnotationServer(pi, ctx, {
+      return openAnnotationSession(pi, ctx, {
         markdown: text,
         mode: "annotate-last",
         sourceInfo: "最后一条消息",
@@ -315,7 +317,7 @@ export default function (pi: ExtensionAPI) {
 
         const content = readFileSync(absolutePath, "utf-8");
 
-        return openAnnotationServer(pi, ctx, {
+        return openAnnotationSession(pi, ctx, {
           markdown: content,
           mode: "annotate",
           sourceInfo: filePath,
@@ -326,79 +328,14 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // ── Hook: turn_end 自动检测 ──────────────────────────────────────────
+  // ── Hook: 自动批注（write/edit 触发，agent_settled 打开） ────────────
 
-  pi.on("turn_end", async (event, ctx) => {
-    // 只处理 assistant 消息
-    if (event.message.role !== "assistant") return;
-
-    const parts = event.message.content.filter((c) => c.type === "text");
-    const text = parts.map((c) => c.text).join("");
-    if (!text) return;
-
-    // 匹配 docs/superpowers/ 下的文件路径
-    const pattern = /docs\/superpowers\/(specs|plans)\/[^\s,.;:()!?]+\.md/g;
-    const matches = text.match(pattern);
-    if (!matches || matches.length === 0) return;
-
-    let foundPath: string | null = null;
-    for (const match of matches) {
-      const absolutePath = resolve(ctx.cwd, match);
-      if (existsSync(absolutePath)) {
-        foundPath = absolutePath;
-        break;
-      }
-    }
-
-    if (!foundPath) return;
-
-    ctx.ui.notify("检测到新文档，正在打开批注...", "info");
-
-    const content = readFileSync(foundPath, "utf-8");
-    const htmlContent = await readAnnotateHtml();
-
-    try {
-      const server = await startAnnotationServer({
-        markdown: content,
-        htmlContent,
-        mode: "annotate",
-        sourceInfo: foundPath,
-        gate: false,
-      });
-
-      // macOS 上优先 Glimpse
-      if (os.platform() === "darwin") {
-        const glimpseOpenFn = await getGlimpseOpen();
-        if (glimpseOpenFn) {
-          try {
-            const glimpseWin = openInGlimpse(glimpseOpenFn, server.url, `批注: ${foundPath}`);
-            let windowClosed = false;
-            glimpseWin.on("closed", () => {
-              windowClosed = true;
-              server.resolveDecision({ action: "exit" });
-            });
-            const decision = await server.waitForDecision();
-            if (decision.action === "exit" && windowClosed) {
-              server.stop();
-              return;
-            }
-            if (!(decision.action === "exit" && windowClosed)) {
-              handleAnnotationDecision(pi, ctx, decision, foundPath, content);
-            }
-            server.stop();
-            return;
-          } catch {
-            // 回退浏览器
-          }
-        }
-      }
-
-      await openUrl(pi, server.url);
-      const decision = await server.waitForDecision();
-      handleAnnotationDecision(pi, ctx, decision, foundPath, content);
-      server.stop();
-    } catch (err) {
-      console.error(`自动批注失败: ${err instanceof Error ? err.message : String(err)}`);
-    }
+  registerAutoAnnotate(pi, async (ctx, candidate) => {
+    await openAnnotationSession(pi, ctx, {
+      markdown: candidate.markdown,
+      mode: "annotate",
+      sourceInfo: candidate.path,
+      onClosedWithoutFeedback: candidate.onClosedWithoutFeedback,
+    });
   });
 }
