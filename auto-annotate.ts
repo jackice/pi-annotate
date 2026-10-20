@@ -177,7 +177,7 @@ export function registerAutoAnnotate(
 
       queue = queue
         .then(async () => {
-          if (signal.aborted) return;
+          if (signal.aborted || muted.has(path) || annotatedHash.get(path) === hash) return;
           await open(ctx, {
             path,
             markdown,

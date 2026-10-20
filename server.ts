@@ -148,6 +148,8 @@ export async function startAnnotationServer(
     resolveDecision = resolve;
   });
 
+  let staleTimer: ReturnType<typeof setInterval> | undefined;
+
   const resolveOnce = (
     result: {
       action: "feedback" | "approve" | "exit";
@@ -157,6 +159,10 @@ export async function startAnnotationServer(
   ): void => {
     if (resolved) return;
     resolved = true;
+    if (staleTimer !== undefined) {
+      clearInterval(staleTimer);
+      staleTimer = undefined;
+    }
     resolveDecision(result);
   };
 
@@ -295,17 +301,14 @@ export async function startAnnotationServer(
 
   const url = `http://127.0.0.1:${port}`;
 
-  // Stale timeout: auto-exit when idle for too long
-  const staleTimer = setInterval(() => {
-    if (resolved) {
-      clearInterval(staleTimer);
-      return;
-    }
-    if (Date.now() - lastActivity > STALE_TIMEOUT_MS) {
-      resolveOnce({ action: "exit" });
-      clearInterval(staleTimer);
-    }
-  }, 30000);
+  // 决策可能在启动期间到达，已结算时不再创建空闲定时器
+  if (!resolved) {
+    staleTimer = setInterval(() => {
+      if (Date.now() - lastActivity > STALE_TIMEOUT_MS) {
+        resolveOnce({ action: "exit" });
+      }
+    }, 30000);
+  }
 
   const activeConnections = new Set<IncomingMessage>();
   server.on("connection", (socket) => {
@@ -319,6 +322,7 @@ export async function startAnnotationServer(
   const handle: AnnotationServerHandle = {
     url,
     stop: () => {
+      resolveOnce({ action: "exit" });
       server.close();
     },
     waitForDecision: () => decisionPromise,
